@@ -49,11 +49,12 @@ def index():
 
 @blueprint.route("/editor/save", methods=['POST'])
 def save():
-    """Save endpoint"""
+    """Save endpoint."""
     data = request.json
-    pid_type = data['pid_type']
-    recid = data['recid']
-    json_data = data['json_data']
+    # Maybe raise an error if json hasn't the required fields
+    pid_type = data.get('pid_type', "")
+    recid = data.get('recid', 0)
+    json_data = data.get('json_data', {})
     try:
         record = get_db_record(pid_type, recid)
         if record:
