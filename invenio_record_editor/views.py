@@ -25,12 +25,11 @@
 """Invenio module for editing JSON records."""
 
 from __future__ import absolute_import, print_function
-import json
-from jsonschema import ValidationError,Draft4Validator
-from flask import Blueprint, render_template,request,jsonify
+from jsonschema import ValidationError
+from flask import Blueprint, render_template, request, jsonify
 from invenio_db import db
 from invenio_indexer.api import RecordIndexer
-from inspirehep.utils.record_getter import get_db_record,RecordGetterError
+from inspirehep.utils.record_getter import get_db_record, RecordGetterError
 
 blueprint = Blueprint(
     'invenio_record_editor',
@@ -47,24 +46,41 @@ def index():
         "invenio_record_editor/index.html",
         module_name='Invenio-RecordEditor')
 
-@blueprint.route("/editor/save" , methods = ['POST'])
-def save():
-	"""Save endpoint"""
-	data = request.json
-	pid_type = data['category']
-	recid = data['recid']
-	json_data = data['json_data']
-	try:
-		record = get_db_record(pid_type,recid)
-		if record:
-			record.update(json_data)
-			#record.validate(validator=Draft4Validator)
-			record.commit()
-			ri = RecordIndexer()
-			ri.index(record)
-	except (RecordGetterError,ValidationError) as e:
-		return jsonify({"message":e.message,
-						"relative_path" : list(e.relative_path)})
 
-	db.session.commit()
-	return jsonify({"message":"success"})
+@blueprint.route("/editor/save", methods=['POST'])
+def save():
+    """Save endpoint"""
+    data = request.json
+    pid_type = data['pid_type']
+    recid = data['recid']
+    json_data = data['json_data']
+    try:
+        record = get_db_record(pid_type, recid)
+        if record:
+            record.update(json_data)
+            record.commit()
+            ri = RecordIndexer()
+            ri.index(record)
+            db.session.commit()
+            return jsonify({
+                "status": 200,
+                "message": "Record saved successfully"
+            })
+
+    except ValidationError as e:
+        rel_path = list(e.relative_path)
+        msg = '.'.join(str(item) for item in rel_path)
+        return jsonify({
+            "status": 500,
+            "errorMap": {
+                msg: [{
+                    "message": e.message.replace('u\'', '').replace('\'', '')
+                }]
+            }
+        })
+    except RecordGetterError:
+        return jsonify({
+            "status": 404,
+            "message": "Record doesn't exist",
+
+        })
