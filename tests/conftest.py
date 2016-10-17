@@ -26,16 +26,34 @@
 """Pytest configuration."""
 
 from __future__ import absolute_import, print_function
-
-import pytest
 from flask import Flask
+import pytest
+import os
+from invenio_pidstore import InvenioPIDStore
+from invenio_record_editor import InvenioRecordEditor
+from invenio_db import InvenioDB
+from invenio_records import InvenioRecords
 
 
-@pytest.fixture()
+@pytest.yield_fixture()
 def app():
     """Flask application fixture."""
-    app = Flask('testapp')
+    app = Flask("test")
     app.config.update(
+        # SQLALCHEMY_DATABASE_URI=os.environ.get(
+        #     'SQLALCHEMY_DATABASE_URI', 'sqlite:///test.db'),
         TESTING=True
     )
-    return app
+    InvenioRecordEditor(app)
+    InvenioPIDStore(app)
+    InvenioDB(app)
+    InvenioRecords(app)
+    with app.app_context():
+        yield app
+
+
+@pytest.yield_fixture()
+def app_client(app):
+    """Flask test client for app."""
+    with app.test_client() as client:
+        yield client
