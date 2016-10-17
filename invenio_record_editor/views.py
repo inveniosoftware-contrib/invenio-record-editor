@@ -28,8 +28,11 @@ from __future__ import absolute_import, print_function
 from jsonschema import ValidationError
 from flask import Blueprint, render_template, request, jsonify
 from invenio_db import db
+from invenio_records.api import Record
+from invenio_pidstore.models import PersistentIdentifier
 from invenio_indexer.api import RecordIndexer
-from inspirehep.utils.record_getter import get_db_record, RecordGetterError
+import json
+
 
 blueprint = Blueprint(
     'invenio_record_editor',
@@ -50,13 +53,13 @@ def index():
 @blueprint.route("/editor/save", methods=['POST'])
 def save():
     """Save endpoint."""
-    data = request.json
-    # Maybe raise an error if json hasn't the required fields
-    pid_type = data.get('pid_type', "")
-    recid = data.get('recid', 0)
-    json_data = data.get('json_data', {})
+    data = json.loads(request.data)
+    pid_type = str(data.get("pid_type", ""))
+    recid = data.get("recid", 0)
+    json_data = data.get("json_data", {})
     try:
-        record = get_db_record(pid_type, recid)
+        pid = PersistentIdentifier.get(pid_type, recid)
+        record = Record.get_record(pid.object_uuid)
         if record:
             record.update(json_data)
             record.commit()
@@ -67,7 +70,6 @@ def save():
                 "status": 200,
                 "message": "Record saved successfully"
             })
-
     except ValidationError as e:
         rel_path = list(e.relative_path)
         msg = '.'.join(str(item) for item in rel_path)
@@ -79,9 +81,9 @@ def save():
                 }]
             }
         })
-    except RecordGetterError:
-        return jsonify({
-            "status": 404,
-            "message": "Record doesn't exist",
+    # except RecordGetterError:
+    #     return jsonify({
+    #         "status": 404,
+    #         "message": "Record doesn't exist",
 
-        })
+    #     })
