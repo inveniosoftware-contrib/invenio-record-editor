@@ -25,13 +25,15 @@
 """Invenio module for editing JSON records."""
 
 from __future__ import absolute_import, print_function
+import json
 from jsonschema import ValidationError
 from flask import Blueprint, render_template, request, jsonify
 from invenio_db import db
 from invenio_records.api import Record
 from invenio_pidstore.models import PersistentIdentifier
+from invenio_pidstore.errors import PIDDoesNotExistError
 from invenio_indexer.api import RecordIndexer
-import json
+from sqlalchemy.orm.exc import NoResultFound
 
 
 blueprint = Blueprint(
@@ -81,9 +83,9 @@ def save():
                 }]
             }
         })
-    # except RecordGetterError:
-    #     return jsonify({
-    #         "status": 404,
-    #         "message": "Record doesn't exist",
+    except (PIDDoesNotExistError, NoResultFound):
+        return jsonify({
+            "status": 404,
+            "message": "Record or PersistentIdentifier doesn't exist",
 
-    #     })
+        })

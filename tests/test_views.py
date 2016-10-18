@@ -38,11 +38,9 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import SQLAlchemyError
 
 
-@pytest.yield_fixture()
+@pytest.fixture(scope='session')
 def db(app):
     """Database fixture."""
-    #import pdb
-    #pdb.set_trace()
     if not database_exists(str(db_.engine.url)):
         create_database(str(db_.engine.url))
     db_.create_all()
@@ -51,24 +49,36 @@ def db(app):
     db_.drop_all()
 
 
-@pytest.fixture(scope='function')
-def generate_data(app):
+@pytest.fixture(scope='session')
+def generate_data(app, db):
     schema = {
-        "titles": {
-            "items": {
-                "type": "object",
-                "properties": {
-                    "value": "string"
-                }
-            },
-            "type": "array",
+        "$schema": "http://json-schema.org/schema#",
+        "description": "Sample schema for testing",
+        "properties": {
+            "titles": {
+                "items": {
+                    "properties": {
+                        "source": {
+                            "type": "string"
+                        },
+                        "subtitle": {
+                            "type": "string"
+                        },
+                        "title": {
+                            "type": "string"
+                        }
+                    },
+                    "type": "object"
+                },
+                "type": "array",
+            }
         }
     }
     record_data = {
         "$schema": schema,
         "titles": [
             {
-                "title": "Cosmic Antigravity ---------"
+                "title": "Cosmic Antigravity"
             }
         ]
     }
@@ -78,65 +88,74 @@ def generate_data(app):
         "json_data": record_data
     }
 
-    # Create record in DB Record.create()
-    # Create entry in PersistentIdentifier
     with app.app_context():
-
-        record = Record.create(json_data)
-        record_uuid = record
-        db.session.commit()
         try:
+            assert RM.query.count() == 0
+            record = Record.create(json_data)
+            record_uuid = record.id
+            record.commit()
+
+            assert PI.query.count() == 0
             pid = PI.create(json_data["pid_type"], json_data[
-                "recid"], object_uuid=record_uuid)
-        except (PIDAlreadyExists, NoResultFound, SQLAlchemyError):
-            pid = PI.get(json_data["pid_type"], json_data["recid"])
-        db.session.commit()
-    yield json_data
+                "recid"], object_type="rec", object_uuid=record_uuid)
+            db.session.commit()
+            assert pid.pid_type == "testSaveView"
+            assert pid.id == 1
+    
+            yield json_data
 
-    # Delete record from DB
-    # Delete entry in PersistentIdentifier
-    record.delete(force=True)
-    pid.delete()
-
-
-def test_get_db_record(generate_data):
-    pid = PI.get(generate_data["pid_type"], generate_data["recid"])
-    rec = Record.get_record(pid.object_uuid)
+            record.delete(force=True)
+            pid.delete()
+            assert PI.query.count() == 0
+            assert RM.query.count() == 0
+        except AssertionError:
+            raise Exception("Record or PersistentIdentifier haven't deleted correctly")
 
 
-# def test_save_view_does_not_accept_get_request(app, app_client):
-#     res = app_client.get("/editor/save")
-#     assert res.status_code == 405
+def test_that_generated_data_initialized_properly(generate_data):
+    try:
+        pid = PI.get(generate_data["pid_type"], generate_data["recid"])
+        rec = Record.get_record(pid.object_uuid)
+        assert rec.id == pid.object_uuid
+    except AssertionError as e:
+        raise Exception(e)
 
 
-# def test_save_view_valid_schema_data(app, app_client, generate_data):
-#     res = app_client.post("/editor/save", data=json.dumps(generate_data))
-#     res_data = json.loads(res.data)
-#     assert res.status_code == 200
-#     assert res_data["status"] == 200
-#     assert res_data["message"] == "Record saved successfully"
+def test_save_view_does_not_accept_get_request(app, app_client):
+    res = app_client.get("/editor/save")
+    assert res.status_code == 405
 
 
-# def test_save_view_invalid_schema_data(app, app_client, generate_data):
-#     generate_data["json_data"]["authors"][
-#         0]["affiliations"][0]["value"] = 0
-#     res = app_client.post("/editor/save", data=json.dumps(generate_data))
-#     res_data = json.loads(res.data)
-#     assert res.status_code == 200
-#     assert res_data["status"] == 500
-#     assert res_data["errorMap"] == {
-#         "authors.0.affiliations.0.value": [
-#             {
-#                 "message": "0 is not of type string"
-#             }
-#         ]
-#     }
+def test_save_view_request_valid_schema_data(app, app_client, generate_data):
+    res = app_client.post("/editor/save", data=json.dumps(generate_data))
+    res_data = json.loads(res.data)
+    assert res.status_code == 200
+    assert res_data["status"] == 200
+    assert res_data["message"] == "Record saved successfully"
+
+def test_save_view_request_invalid_schema_data(app, app_client, generate_data):
+    generate_data["json_data"]["titles"][0]["title"] = 0
+    res = app_client.post("/editor/save", data=json.dumps(generate_data))
+    res_data = json.loads(res.data)
+    assert res.status_code == 200
+    assert res_data["status"] == 500
+    expected_error_map = json.loads(json.dumps({
+        "errorMap": {
+            "titles.0.title": [
+              {
+                "message": "0 is not of type string"
+              }
+            ]
+        },
+        "status": 500
+    }))
+    assert res_data["errorMap"] == expected_error_map["errorMap"]
 
 
-# def test_save_view_not_existing_data(app, app_client, generate_data):
-#     generate_data["pid_type"] = "error"
-#     res = app_client.post("/editor/save", data=json.dumps(generate_data))
-#     res_data = json.loads(res.data)
-#     assert res.status_code == 200
-#     assert res_data["status"] == 404
-#     assert res_data["message"] == "Record doesn't exist"
+def test_save_view_request_not_existing_data(app, app_client, generate_data):
+    generate_data["pid_type"] = "error"
+    res = app_client.post("/editor/save", data=json.dumps(generate_data))
+    res_data = json.loads(res.data)
+    assert res.status_code == 200
+    assert res_data["status"] == 404
+    assert res_data["message"] == "Record doesn't exist"
