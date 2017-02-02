@@ -29,7 +29,6 @@ from __future__ import absolute_import, print_function
 
 from flask import Flask
 
-from invenio_assets import InvenioAssets
 from invenio_record_editor import InvenioRecordEditor
 
 
@@ -50,12 +49,3 @@ def test_init():
     assert 'invenio-record-editor' not in app.extensions
     ext.init_app(app)
     assert 'invenio-record-editor' in app.extensions
-
-
-def test_view(app):
-    """Test view."""
-    InvenioRecordEditor(app)
-    InvenioAssets(app)
-    with app.test_client() as client:
-        res = client.get("/editor/")
-        assert res.status_code == 200

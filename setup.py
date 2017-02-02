@@ -99,7 +99,9 @@ setup(
             'invenio_record_editor_js = invenio_record_editor.bundles:js'
         ],
         # 'invenio_base.api_apps': [],
-        # 'invenio_base.api_blueprints': [],
+        'invenio_base.api_blueprints': [
+            'invenio_record_editor = invenio_record_editor.views:api_blueprint'
+        ],
         # 'invenio_base.blueprints': [],
         # 'invenio_celery.tasks': [],
         # 'invenio_db.models': [],
@@ -121,8 +123,6 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Development Status :: 1 - Planning',
     ],

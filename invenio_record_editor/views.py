@@ -26,7 +26,16 @@
 
 from __future__ import absolute_import, print_function
 
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, current_app, jsonify, render_template, request
+
+from .utils import RecordValidator
+
+api_blueprint = Blueprint(
+    'invenio_record_editor_api',
+    __name__,
+    url_prefix='/editor',
+)
+
 
 blueprint = Blueprint(
     'invenio_record_editor',
@@ -42,3 +51,28 @@ blueprint = Blueprint(
 def index(path):
     """Basic view."""
     return render_template(current_app.config['RECORD_EDITOR_INDEX_TEMPLATE'])
+
+
+@blueprint.route('/preview', methods=['POST'])
+def preview():
+    """Used for previewing the record being edited."""
+    data = request.get_json()
+    template = current_app.config['RECORD_EDITOR_PREVIEW_TEMPLATE_FUNCTION'](
+        data
+    )
+    return render_template(template, record=data)
+
+
+@api_blueprint.route('/validate', methods=['POST'])
+def validate():
+    """Validate incoming document against validator functions."""
+    data = request.get_json()
+    validator_fns = current_app.config['RECORD_EDITOR_VALIDATOR_FUNCTIONS']
+    if validator_fns:
+        record_validator = RecordValidator(
+            record=data,
+            validator_fns=validator_fns
+        )
+        record_validator.validate()
+        return jsonify(record_validator.errors)
+    return jsonify({})
