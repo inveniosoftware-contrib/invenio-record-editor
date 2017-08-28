@@ -34,3 +34,16 @@ RECORD_EDITOR_INDEX_TEMPLATE = 'invenio_record_editor/index.html'
 RECORD_EDITOR_PREVIEW_TEMPLATE_FUNCTION = _get_template_from_record
 """Function that receives a record and returns the template to be used for
 preview."""
+
+RECORD_EDITOR_VALIDATOR_FUNCTIONS = []
+"""List of validator functions.
+
+NOTE: Each function in validator_fns should have one input parameter
+(the record dictionary) and should return a dictionary with the format:
+{
+    'path.in.dotted.notation': [{
+        'message': 'Error/Warning message to be displayed',
+        'type': <error|warning>
+    }]
+}
+"""

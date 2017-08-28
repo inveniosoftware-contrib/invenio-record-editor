@@ -32,9 +32,10 @@ from flask import Flask
 from invenio_assets import InvenioAssets
 
 from invenio_record_editor import InvenioRecordEditor
+from invenio_record_editor.views import api_blueprint
 
 
-@pytest.fixture()
+@pytest.fixture(scope='session')
 def app():
     """Flask application fixture."""
     app = Flask('testapp')
@@ -43,4 +44,7 @@ def app():
     )
     InvenioRecordEditor(app)
     InvenioAssets(app)
+    # For testing API views
+    app.register_blueprint(api_blueprint)
+
     return app
